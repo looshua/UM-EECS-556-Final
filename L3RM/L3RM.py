@@ -1,5 +1,6 @@
 import numpy as np
 from L3RM.utils import first_order_derivative_filter, get_matrix_gradient
+from L3RM.LowRankMinimizer import LowRankMinimizer
 
 class L3RM:
     def __init__(self, 
@@ -18,9 +19,13 @@ class L3RM:
         self.sigma = sigma
         self.eps = eps
 
-    def process(self, 
-                input_img: np.ndarray
-                ):
+        self.minimizer = LowRankMinimizer()
+        self.max_R_iters = 5
+        self.convergence_error = 5
+
+    def estimate(self, 
+                 input_img: np.ndarray
+                 ):
         Lhat, Rhat, Gh, Gv = self._initialize(input_img)
         L = self._solve_L_subproblem(Lhat)
 
@@ -29,6 +34,12 @@ class L3RM:
         while not converge:
             k += 1
             converge, R = self._solve_R_subproblem(Rhat, Gh, Gv)
+
+        return L, R
+    
+    def brighten(self, L, R, gamma):
+        brighter_L = np.pow(L,gamma)
+        return R*brighter_L
             
     def _initialize(self, 
                     input_img: np.ndarray
@@ -54,6 +65,8 @@ class L3RM:
         self.Z = np.zeros((height,width))
 
         Gh, Gv = self._get_G(input_img)
+
+        self.r_iter_k = 0
 
         return Lhat, Rhat, Gh, Gv
     
@@ -101,7 +114,7 @@ class L3RM:
         R = self._solve_R_noise_suppression(input_img,Rhat_kp1,L)
 
         self._update_aux()
-        converge = self.check_converge()
+        converge = self.check_converge(Rhat, R)
         return converge, R
 
     def _solve_R_contrast_enhancement(self, 
@@ -127,13 +140,20 @@ class L3RM:
     def _solve_R_noise_suppression(self, input_img, Rhat_kp1, L):
         Rbar = (2*input_img*L + self.mu*Rhat_kp1 + self.Z) / \
                (2*L*L + self.mu)
+        Rkp1 = self.minimizer.minimize(Rbar)
+        return Rkp1
         
     def _update_aux(self, Rhat, R):
         self.Z = self.Z + self.mu*(Rhat - R)
         self.mu = self.mu * self.rho
 
-    def check_converge(self) -> bool:
-        pass
+    def check_converge(self, Rhat, R) -> bool:
+        if self.r_iter_k > self.max_R_iters:
+            return True
+        
+        error = np.linalg.norm((Rhat - R).flatten(),2)/R.size()
+        return error < self.convergence_error
+
 
 
 
