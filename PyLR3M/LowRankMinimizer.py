@@ -2,8 +2,8 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Tuple
 
-from L3RM.utils import soft_shrinkage
-from L3RM.MinimizerBase import MinimizerBase
+from PyLR3M.utils import soft_shrinkage
+from PyLR3M.MinimizerBase import MinimizerBase
 
 @dataclass
 class LowRankMinParams:

@@ -14,7 +14,7 @@ jedi==0.19.2
 jupyter_client==8.6.3
 jupyter_core==5.7.2
 kiwisolver==1.4.8
--e git+https://github.com/looshua/UM-EECS-556-Final.git@06eccb44655a5bdaa2ba99cc4c892d3f46ed5696#egg=L3RM
+-e git+https://github.com/looshua/UM-EECS-556-Final.git@3f030cebd79884211fc10c6a23fd207ab5e58b11#egg=L3RM
 matplotlib==3.10.1
 matplotlib-inline==0.1.7
 nest-asyncio==1.6.0
@@ -29,6 +29,7 @@ psutil==7.0.0
 ptyprocess==0.7.0
 pure_eval==0.2.3
 Pygments==2.19.1
+-e git+https://github.com/looshua/UM-EECS-556-Final.git@3f030cebd79884211fc10c6a23fd207ab5e58b11#egg=PyLR3M
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
 pyzmq==26.3.0

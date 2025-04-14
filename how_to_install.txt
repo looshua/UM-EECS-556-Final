@@ -1,0 +1,9 @@
+1. Clone from github with
+git clone https://github.com/looshua/UM-EECS-556-Final.git
+
+2. (optional) create a virtual environment 
+
+3. pip install from requirements.txt
+pip install -r requirements.txt
+
+4. check installation by running test_install.py
