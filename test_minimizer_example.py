@@ -1,4 +1,4 @@
-from L3RM.L3RM import L3RM
+from PyLR3M.LR3M import LR3M
 
 from PIL import Image
 import numpy as np
@@ -19,7 +19,7 @@ def imagify(arr, maxval=None):
     return arrs.astype('uint8')
 
 # change parameters as needed
-enhancer = L3RM(alpha=0.015, beta=1.5e-3, eps=10, lmbda=2.5, sigma=10)
+enhancer = LR3M(alpha=0.015, beta=1.5e-3, eps=10, lmbda=2.5, sigma=10)
 
 # SET MINIMIZER 
 minimizer = None
