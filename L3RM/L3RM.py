@@ -25,6 +25,9 @@ class L3RM:
         self.max_R_iters = 5
         self.convergence_error = 5
 
+    def set_minimizer(self, minimzer):
+        self.minimizer = minimzer
+
     def estimate(self, 
                  input_img: np.ndarray
                  ):
