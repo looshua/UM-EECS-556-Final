@@ -1,5 +1,5 @@
 [project]
-name = "L3RM"
+name = "PyLR3M"
 version = "0.1.0"
 description = "code for eecs 556 final project"
 
