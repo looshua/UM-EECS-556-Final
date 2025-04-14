@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Tuple
 
 from L3RM.utils import soft_shrinkage
+from L3RM.MinimizerBase import MinimizerBase
 
 @dataclass
 class LowRankMinParams:
@@ -18,7 +19,7 @@ class LowRankMinParams:
     c1:             float   =   2.9*np.sqrt(2)      # soft shrinkage threshold scaling parameter
 
 
-class LowRankMinimizer:
+class LowRankMinimizer(MinimizerBase):
     def __init__(self):
         self.params = LowRankMinParams()
 
