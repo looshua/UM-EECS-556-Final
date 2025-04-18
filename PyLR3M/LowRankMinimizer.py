@@ -5,14 +5,16 @@ from typing import Tuple
 from PyLR3M.utils import soft_shrinkage
 from PyLR3M.MinimizerBase import MinimizerBase
 
+import time
+
 @dataclass
 class LowRankMinParams:
-    block_size:     int     =   21                  # block size
-    match_window:   int     =   5                  # maximum distance of blocks to consider
-    step:           int     =   10                   # number of pixels between block centers
-    kNN:            int     =   10                  # number of nearest neighbours
+    block_size:     int     =   6                   # block size
+    match_window:   int     =   22                  # maximum distance of blocks to consider
+    step:           int     =   10                  # number of pixels between block centers
+    kNN:            int     =   40                  # number of nearest neighbours
 
-    num_iters:      int     =   10                  # number of iterations for denoising
+    num_iters:      int     =   3                   # number of iterations for denoising
     std_prior:      float   =   10                  # prior on the noise variance
     delta:          float   =   0.23                # noise reintroduction regularization parameter
     gamma:          float   =   0.65                # variance re-estimation scaling
@@ -33,8 +35,16 @@ class LowRankMinimizer(MinimizerBase):
             im_out = self._regularization(im_in,im_out)
             self._var_estimation(im_in,im_out)
             X = self._patchify(im_out,self.params.block_size)
-            kNN = self._block_matching(X)
+
+            start = time.time()
+            kNN = self._block_matching(X.T)
+            end = time.time()
+            print(f"Block match: {end-start:.2f}")
+
+            start = time.time()
             im_out = self._low_rank_SSC(X,kNN)
+            end = time.time()
+            print(f"SVD: {end-start:.2f}")
 
             print(f"completed iter {self.iter}")
 
@@ -58,11 +68,13 @@ class LowRankMinimizer(MinimizerBase):
         # create selection matrix depending on the patch step
         I2 = np.zeros((self.N,self.M))
         I2[::self.params.step,::self.params.step] = 1
+        I2[::self.params.step,-1] = 1
+        I2[-1,::self.params.step] = 1
+        I2[-1,-1] = 1
 
         # get the indexes of patches used for block matching
         [self.patch_ind_row,self.patch_ind_col] = np.nonzero(I2)
         self.num_blocks = len(self.patch_ind_row)
-        print(self.num_blocks)
 
     def _regularization(self,
                         im_in,
@@ -92,14 +104,16 @@ class LowRankMinimizer(MinimizerBase):
                   )->np.ndarray:
         # flatten every [fxfxC] patch into a row in X
         X = np.zeros((int(block_size**2)*self.C,self.L))
+        l = 0
         for i in range(block_size):
             for j in range(block_size):
                 for k in range(self.C):
                     add_block = im_in[i:self.n-block_size+i+1,
                                       j:self.m-block_size+j+1,
                                       k].flatten()
-                    X[i*block_size+j*self.C+k,:] = add_block
-        return X.T
+                    X[l,:] = add_block
+                    l += 1
+        return X
 
     def _block_matching(self,
                         patches:    np.ndarray
@@ -110,17 +124,18 @@ class LowRankMinimizer(MinimizerBase):
         f = self.params.block_size
         self.block_elems = f**2*3
 
-        kNN = np.zeros((self.params.kNN,self.num_blocks))
+        kNN = np.zeros((self.params.kNN,self.num_blocks),dtype=np.float32)
+        print(f"matched block {0}/{self.num_blocks}")
         for i in range(self.num_blocks):
-            if (i+1) % 100 == 0:
+            if (i+1) % 10000 == 0:
                 print(f"matched block {i+1}/{self.num_blocks}")
             (r,c) = (self.patch_ind_row[i],self.patch_ind_col[i])
             offset = r*self.M+c
 
             block_match_rmin = int(np.max([r-self.params.match_window,0]))
-            block_match_rmax = int(np.min([r+self.params.match_window,self.N]))
+            block_match_rmax = int(np.min([r+self.params.match_window,self.N+1]))
             block_match_cmin = int(np.max([c-self.params.match_window,0]))
-            block_match_cmax = int(np.min([c+self.params.match_window,self.M]))
+            block_match_cmax = int(np.min([c+self.params.match_window,self.M+1]))
 
             match_idxs = self.patch_index[block_match_rmin:block_match_rmax,
                                           block_match_cmin:block_match_cmax]
@@ -147,13 +162,14 @@ class LowRankMinimizer(MinimizerBase):
         W = np.zeros(patches.shape)
 
         for i in range(self.num_blocks):
-            # print(kNN[:,i])
-            blocks = patches[kNN[:,i],:]
-            n_blocks = blocks.shape[0]
-            block_means = np.tile(np.mean(blocks,0),(n_blocks,1))
+            blocks = patches[:,kNN[:,i]]
+            n_blocks = blocks.shape[1]
+            block_means = np.repeat(np.mean(blocks,1)[:,np.newaxis],
+                                    n_blocks,
+                                    axis=1)
             blocks = blocks - block_means
 
-            [Y[kNN[:,i],:],W[kNN[:,i],:]] = self._block_SSC(blocks,
+            [Y[:,kNN[:,i]],W[:,kNN[:,i]]] = self._block_SSC(blocks,
                                                             block_means)
         return self._unpatchify(Y,W)
 
@@ -189,17 +205,18 @@ class LowRankMinimizer(MinimizerBase):
         im_out = np.zeros((self.n,self.m,self.C))
         im_weights = np.zeros((self.n,self.m,self.C))
 
+        l = 0
         for i in range(self.params.block_size):
             for j in range(self.params.block_size):
                 for k in range(self.C):
-                    lin_index = (i*self.params.block_size)+(j*self.C)+k
                     im_out[i:self.n-self.params.block_size+i+1,
                            j:self.m-self.params.block_size+j+1,
-                           k] = \
-                        np.reshape(Y[:,lin_index].T,(self.N,self.M))
+                           k] += \
+                        np.reshape(Y[l,:].T,(self.N,self.M))
                     im_weights[i:self.n-self.params.block_size+i+1,
                                j:self.m-self.params.block_size+j+1,
-                               k] = \
-                        np.reshape(W[:,lin_index].T,(self.N,self.M))
+                               k] += \
+                        np.reshape(W[l,:].T,(self.N,self.M))
+                    l += 1
 
-        return im_out / im_weights
+        return im_out / (im_weights+1e-20)

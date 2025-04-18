@@ -36,17 +36,20 @@ class LR3M:
         L = self._solve_L_subproblem(Lhat)
         Rhat = self._initialize_Rhat(input_img,L)
 
-        k = 0
         converge = False
         while not converge:
-            print(f'estimate! {k}')
-            k += 1
-            converge, R = self._solve_R_subproblem(Rhat, Gh, Gv)
+            converge, R = self._solve_R_subproblem(input_img,
+                                                   Rhat, 
+                                                   Gh, 
+                                                   Gv,
+                                                   L)
 
         return L, R
     
     def brighten(self, L, R, gamma):
-        brighter_L = np.pow(L,1/gamma)
+        norm_L = np.max(L)
+        Lp = L / norm_L
+        brighter_L = np.pow(Lp,1/gamma)
         brighter_L3 = np.tile(brighter_L[...,np.newaxis],(1,1,3))
         return R*brighter_L3
             
@@ -71,7 +74,7 @@ class LR3M:
         self.DtD = (self.Dh.T @ self.Dh) + (self.Dv.T @ self.Dv)
 
         self.mu = 1
-        self.Z = np.zeros((height,width))
+        self.Z = np.zeros((height,width,channels))
 
         Gh, Gv = self._get_G(input_img)
 
@@ -109,8 +112,6 @@ class LR3M:
         lhat = np.reshape(Lhat, -1)
         l, info = linalg.cg(solution_matrix,lhat)
 
-        print(info)
-
         L = np.reshape(l, (self.height, self.width))
         return L
 
@@ -124,7 +125,7 @@ class LR3M:
                          L: np.ndarray
                          ):
         L = L[...,np.newaxis]
-        L3 = np.tile(L,(1,1,3)) + 1e-10
+        L3 = np.tile(L,(1,1,3))
         return input_img / L3
 
     def _solve_R_subproblem(self,
@@ -137,7 +138,7 @@ class LR3M:
         Rhat_kp1 = self._solve_R_contrast_enhancement(Rhat, Gh, Gv)
         R = self._solve_R_noise_suppression(input_img,Rhat_kp1,L)
 
-        self._update_aux()
+        self._update_aux(Rhat_kp1,R)
         converge = self.check_converge(Rhat, R)
         return converge, R
 
@@ -152,31 +153,27 @@ class LR3M:
                             self.mu*sparse.eye(self.height*self.width)
 
             rhat = np.reshape(Rhat[:,:,c],-1)
-            z = np.reshape(self.Z,-1)
+            z = np.reshape(self.Z[:,:,c],-1)
 
             gh = np.reshape(Gh[:,:,c], -1)
             gv = np.reshape(Gv[:,:,c], -1)
             solution_vector = 2*self.beta*((self.Dh.T @ gh) + (self.Dv.T @ gv)) + \
                               self.mu*rhat - z
             
-            # rhat_kp1 = np.linalg.solve(solution_matrix,solution_vector)
             rhat_kp1, info = linalg.cg(solution_matrix,solution_vector)
-            print(f'R ce converge: {info}')
             Rhat_kp1[:,:,c] = np.reshape(rhat_kp1, (self.height,self.width))
         return Rhat_kp1
 
     def _solve_R_noise_suppression(self, input_img, Rhat_kp1, L):
-        Rbar = self._calc_Rbar(input_img,Rhat_kp1,L)
-        Rkp1 = self.minimizer.minimize(Rbar)
+        # Rbar = self._calc_Rbar(input_img,Rhat_kp1,L)
+        Rkp1 = self.minimizer.minimize(Rhat_kp1)
         return Rkp1
     
     def _calc_Rbar(self, input_img, Rhat_kp1, L):
         L = L[...,np.newaxis]
-        Z = self.Z[...,np.newaxis]
         L3 = np.tile(L,(1,1,3))
-        Z3 = np.tile(Z,(1,1,3))
 
-        Rbar = (2*input_img*L3 + self.mu*Rhat_kp1 + Z3) / \
+        Rbar = (2*input_img*L3 + self.mu*Rhat_kp1 + self.Z) / \
                (2*L3*L3 + self.mu)
         return Rbar
         
@@ -185,10 +182,12 @@ class LR3M:
         self.mu = self.mu * self.rho
 
     def check_converge(self, Rhat, R) -> bool:
+        self.r_iter_k += 1
         if self.r_iter_k > self.max_R_iters:
             return True
         
-        error = np.linalg.norm((Rhat - R).flatten(),2)/R.size()
+        error = np.linalg.norm((Rhat - R).flatten(),2) / \
+                (self.width*self.height*self.channels)
         return error < self.convergence_error
 
 
