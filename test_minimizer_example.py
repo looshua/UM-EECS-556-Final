@@ -1,6 +1,7 @@
 from PyLR3M.LR3M import LR3M
 from PyLR3M.LowRankMinimizer import LowRankMinimizer
 from PyLR3M.BM3D import BM3DMinimizer
+from PyLR3M.FNLM import FNLMMinimizer
 
 from PIL import Image
 import numpy as np
@@ -26,7 +27,8 @@ enhancer.convergence_error = 0.4
 
 for f in os.listdir("data"):
     # SET MINIMIZER 
-    minimizer = BM3DMinimizer(noise_sigma=4)    
+    #minimizer = BM3DMinimizer(noise_sigma=4)
+    minimizer = FNLMMinimizer()  
     enhancer.set_minimizer(minimizer)
     
     fbase = os.path.splitext(f)[0]
@@ -40,7 +42,7 @@ for f in os.listdir("data"):
     # change this to control the maximum brightness of the adjusted image
     SAT = 1
     
-    stacked = np.concat((imagify(im_in),imagify(S_improve,SAT)), axis=0)
+    stacked = np.concatenate((imagify(im_in),imagify(S_improve,SAT)), axis=0)
     plt.imshow(stacked)
     plt.show()
 

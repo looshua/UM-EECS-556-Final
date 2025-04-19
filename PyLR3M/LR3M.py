@@ -49,7 +49,7 @@ class LR3M:
     def brighten(self, L, R, gamma):
         norm_L = np.max(L)
         Lp = L / norm_L
-        brighter_L = np.pow(Lp,1/gamma)
+        brighter_L = np.power(Lp,1/gamma)
         brighter_L3 = np.tile(brighter_L[...,np.newaxis],(1,1,3))
         return R*brighter_L3
             
